@@ -11,28 +11,38 @@
 #include <netinet/in.h>
 #include <memory>
 #include <thread>
-#include <mutex>
+#include <chrono>
+#include <tuple>
 
 static const uint16_t PORT = 53;
 
-static std::unordered_set<uint32_t> ips;
-static std::mutex ips_mutex;
+static std::vector<std::pair<std::thread, std::shared_ptr<std::unordered_set<uint32_t>>>> threads;
 
-static std::vector<std::thread> threads;
-
-int thread_recv(void);
+int thread_recv(std::shared_ptr<std::unordered_set<uint32_t>> ips);
 
 int main(int argc, char **argv) {
     for (int i = 0; i < 4; i++) {
-        threads.push_back(std::thread([](){thread_recv();}));
+        std::shared_ptr<std::unordered_set<uint32_t>> ips(new std::unordered_set<uint32_t>());
+        threads.push_back(std::make_pair(std::thread([ips](){thread_recv(ips);}), ips));
+    }
+
+    while (true) {
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+
+        int unique_ips = 0;
+        for (int i = 0; i < threads.size(); i++) {
+            unique_ips += threads[i].second->size();
+        }
+
+        std::cout << "Unique IPs: " << unique_ips << std::endl;
     }
 
     for (int i = 0; i < threads.size(); i++) {
-        threads[i].join();
+        threads[i].first.join();
     }
 }
 
-int thread_recv(void) {
+int thread_recv(std::shared_ptr<std::unordered_set<uint32_t>> ips) {
     int sock_fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
     if (sock_fd < 0) {
         std::cerr << "Error openning socket: " << strerror(errno) << std::endl;
@@ -40,7 +50,7 @@ int thread_recv(void) {
     }
 
     int reuse_addr = 1;
-    if (setsockopt(sock_fd, SOL_SOCKET, SO_REUSEADDR, &reuse_addr, sizeof(reuse_addr)) == -1) {
+    if (setsockopt(sock_fd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &reuse_addr, sizeof(reuse_addr)) == -1) {
         std::cerr << "Error setting REUSE_ADDR: " << strerror(errno) << std::endl;
     }
 
@@ -66,10 +76,6 @@ int thread_recv(void) {
             std::cerr << "Error recvfrom() " << strerror(errno) << std::endl;
         }
 
-        ips_mutex.lock();
-        ips.insert(src_addr.sin_addr.s_addr);
-        ips_mutex.unlock();
-
-        std::cout << "Unique IPs: " << ips.size() << std::endl;
+        ips->insert(src_addr.sin_addr.s_addr);
     }
 }
