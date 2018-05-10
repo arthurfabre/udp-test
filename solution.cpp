@@ -39,7 +39,7 @@ int thread_recv(void) {
         return -1;
     }
 
-    bool reuse_addr = true;
+    int reuse_addr = 1;
     if (setsockopt(sock_fd, SOL_SOCKET, SO_REUSEADDR, &reuse_addr, sizeof(reuse_addr)) == -1) {
         std::cerr << "Error setting REUSE_ADDR: " << strerror(errno) << std::endl;
     }
