@@ -20,13 +20,28 @@ static std::mutex ips_mutex;
 
 static std::vector<std::thread> threads;
 
-int thread_recv(const int sock_fd);
+int thread_recv(void);
 
 int main(int argc, char **argv) {
+    for (int i = 0; i < 4; i++) {
+        threads.push_back(std::thread([](){thread_recv();}));
+    }
+
+    for (int i = 0; i < threads.size(); i++) {
+        threads[i].join();
+    }
+}
+
+int thread_recv(void) {
     int sock_fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
     if (sock_fd < 0) {
         std::cerr << "Error openning socket: " << strerror(errno) << std::endl;
         return -1;
+    }
+
+    bool reuse_addr = true;
+    if (setsockopt(sock_fd, SOL_SOCKET, SO_REUSEADDR, &reuse_addr, sizeof(reuse_addr)) == -1) {
+        std::cerr << "Error setting REUSE_ADDR: " << strerror(errno) << std::endl;
     }
 
     struct sockaddr_in addr = {};
@@ -40,16 +55,7 @@ int main(int argc, char **argv) {
     }
 
     std::cout << "Socket bound" << std::endl;
-    for (int i = 0; i < 4; i++) {
-        threads.push_back(std::thread([sock_fd](){thread_recv(sock_fd);}));
-    }
 
-    for (int i = 0; i < threads.size(); i++) {
-        threads[i].join();
-    }
-}
-
-int thread_recv(const int sock_fd) {
     std::array<uint8_t, 1024> buffer;
     struct sockaddr_in src_addr = {};
     socklen_t src_addr_len;
