@@ -11,10 +11,12 @@
 #include <netinet/in.h>
 #include <memory>
 #include <thread>
+#include <mutex>
 
 static const uint16_t PORT = 53;
 
 static std::unordered_set<uint32_t> ips;
+static std::mutex ips_mutex;
 
 static std::vector<std::thread> threads;
 
@@ -58,7 +60,10 @@ int thread_recv(const int sock_fd) {
             std::cerr << "Error recvfrom() " << strerror(errno) << std::endl;
         }
 
+        ips_mutex.lock();
         ips.insert(src_addr.sin_addr.s_addr);
+        ips_mutex.unlock();
+
         std::cout << "Unique IPs: " << ips.size() << std::endl;
     }
 }
