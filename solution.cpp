@@ -9,6 +9,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <memory>
 #include <thread>
 
 static const uint16_t PORT = 53;
@@ -39,6 +40,10 @@ int main(int argc, char **argv) {
     std::cout << "Socket bound" << std::endl;
     for (int i = 0; i < 4; i++) {
         threads.push_back(std::thread([sock_fd](){thread_recv(sock_fd);}));
+    }
+
+    for (int i = 0; i < threads.size(); i++) {
+        threads[i].join();
     }
 }
 
